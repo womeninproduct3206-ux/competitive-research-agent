@@ -1,0 +1,1 @@
+# competitive-research-agent
