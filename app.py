@@ -9,6 +9,8 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from cra.config import Settings, load_settings
+from cra.models import ResearchCategory, ResearchRequest
+from cra.validation import MAX_COMPETITORS, CompetitorInput, FormInput, validate_form
 
 st.set_page_config(page_title="Competitive Research Agent", page_icon="🔎", layout="wide")
 
@@ -38,6 +40,102 @@ def check_password(settings: Settings) -> bool:
     return False
 
 
+EXAMPLE = {
+    "product_name": "Example: My high-protein ice cream",
+    "product_description": "Example: a low-sugar, high-protein ice cream sold online and in stores.",
+    "industry": "Packaged foods / frozen desserts",
+    "target_customer": "Health-conscious adults in Indian cities",
+    "objectives": "How do these brands price and position their products? "
+    "What do customers complain about? Where are the gaps we could fill?",
+    "categories": list(ResearchCategory),
+    "n_competitors": 3,
+    "comp_name_0": "Get-A-Whey",
+    "comp_name_1": "Go Zero",
+    "comp_name_2": "Amul",
+}
+
+
+def load_example() -> None:
+    for i in range(MAX_COMPETITORS):
+        st.session_state[f"comp_urls_{i}"] = ""
+        st.session_state[f"comp_name_{i}"] = ""
+    st.session_state.update(EXAMPLE)
+
+
+def setup_form() -> None:
+    """The research setup form. Saves a valid ResearchRequest in the session."""
+    st.session_state.setdefault("n_competitors", 2)
+    st.session_state.setdefault("categories", list(ResearchCategory))
+    st.subheader("1. Research setup")
+    left, right = st.columns([3, 1])
+    left.write("Tell us about your product, your competitors, and what you want to learn.")
+    right.button("Fill in example", on_click=load_example, use_container_width=True,
+                 help="Pre-fills the ice cream test case. Competitor web addresses are left for you to paste.")
+
+    n = st.number_input("How many competitors?", min_value=1, max_value=MAX_COMPETITORS,
+                        key="n_competitors")
+
+    with st.form("setup"):
+        st.markdown("**Your product**")
+        c1, c2 = st.columns(2)
+        c1.text_input("Product name", key="product_name")
+        c2.text_input("Industry", key="industry", placeholder="e.g. B2B SaaS, HR software")
+        st.text_area("Product description", key="product_description", height=80,
+                     placeholder="What does your product do, and for whom?")
+        st.text_input("Target customer", key="target_customer",
+                      placeholder="e.g. Product teams at mid-size software companies")
+
+        st.markdown("**Competitors**")
+        st.caption(
+            "Paste publicly accessible pages, one per line: home page, pricing, docs, changelog, blog, "
+            "public review pages. Pages behind a login or paywall will be skipped."
+        )
+        for i in range(int(n)):
+            a, b = st.columns([1, 2])
+            a.text_input(f"Competitor {i + 1} name", key=f"comp_name_{i}")
+            b.text_area(f"Competitor {i + 1} web pages", key=f"comp_urls_{i}", height=90,
+                        placeholder="https://competitor.com\nhttps://competitor.com/pricing")
+
+        st.markdown("**What do you want to learn?**")
+        st.text_area("Research objectives", key="objectives", height=80,
+                     placeholder="e.g. Why are we losing deals to Competitor X?")
+        st.multiselect("Research categories", options=list(ResearchCategory),
+                       format_func=lambda c: c.value, key="categories")
+        submitted = st.form_submit_button("Save research setup", type="primary")
+
+    if submitted:
+        state = st.session_state
+        form = FormInput(
+            product_name=state.product_name,
+            product_description=state.product_description,
+            industry=state.industry,
+            target_customer=state.target_customer,
+            competitors=[CompetitorInput(state.get(f"comp_name_{i}", ""), state.get(f"comp_urls_{i}", ""))
+                         for i in range(int(n))],
+            objectives=state.objectives,
+            categories=state.categories,
+        )
+        request, errors = validate_form(form)
+        if errors:
+            st.session_state.pop("request", None)
+            st.error("A few things need fixing before research can start:\n\n"
+                     + "\n".join(f"- {e}" for e in errors))
+        else:
+            st.session_state["request"] = request
+
+
+def show_request(request: ResearchRequest) -> None:
+    st.success("Research setup saved.")
+    with st.expander("Review your setup", expanded=True):
+        st.markdown(f"**{request.product_name}** · {request.industry} · for {request.target_customer}")
+        st.markdown(f"**Objectives:** {request.objectives}")
+        st.markdown("**Categories:** " + ", ".join(c.value for c in request.categories))
+        for comp in request.competitors:
+            st.markdown(f"**{comp.name}** ({len(comp.urls)} page{'s' if len(comp.urls) != 1 else ''})")
+            st.markdown("\n".join(f"- {u}" for u in comp.urls))
+    st.info("Running the research and building the report arrives in Milestone 2.")
+
+
 def main() -> None:
     settings = get_settings()
     if not check_password(settings):
@@ -54,7 +152,9 @@ def main() -> None:
             "labeled sample data. Sample data is not real research."
         )
 
-    st.info("The research setup form arrives in Milestone 1.")
+    setup_form()
+    if "request" in st.session_state:
+        show_request(st.session_state["request"])
 
 
 main()

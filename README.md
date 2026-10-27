@@ -5,8 +5,9 @@ your competitors and their public web pages, and your research questions. The ap
 produces a structured report in which every claim links to the public source that
 supports it.
 
-> **Status: Milestone 0 (project skeleton).** The app opens and shows whether it is in
-> demo mode or live mode. Research features arrive in later milestones.
+> **Status: Milestone 1 (research setup form).** You can enter your product, competitors,
+> their public web pages, objectives and categories. The form checks your input and
+> explains anything that needs fixing. Running research arrives in Milestone 2.
 
 ## Demo mode vs. live mode
 
@@ -53,6 +54,7 @@ pytest
 app.py            Web interface (Streamlit)
 cra/config.py     Reads settings and secrets
 cra/models.py     Shared data shapes: requests, sources, claims
+cra/validation.py Checks the setup form and explains problems in plain English
 tests/            Automated tests
 ```
 
