@@ -139,11 +139,11 @@ def show_request(request: ResearchRequest) -> None:
             st.markdown("\n".join(f"- {u}" for u in comp.urls))
 
 
-def run_and_store(request: ResearchRequest) -> None:
+def run_and_store(request: ResearchRequest, live: bool) -> None:
     """Run research with a live progress bar, keeping any error readable."""
     bar = st.progress(0.0, text="Starting research...")
     try:
-        report = run_research(request, progress=lambda f, msg: bar.progress(f, text=msg))
+        report = run_research(request, progress=lambda f, msg: bar.progress(f, text=msg), live=live)
     except Exception as exc:  # show a helpful message instead of a crash screen
         bar.empty()
         st.error(f"Research could not be completed: {exc}\n\nYour setup is saved. "
@@ -153,11 +153,29 @@ def run_and_store(request: ResearchRequest) -> None:
     st.session_state["report"] = report
 
 
+LIVE = "Live research"
+SAMPLE = "Sample report (demo data)"
+
+
 def research_step(request: ResearchRequest) -> None:
     st.subheader("2. Run research")
+    mode = st.radio(
+        "What kind of research?",
+        [LIVE, SAMPLE],
+        captions=[
+            "Reads the public pages you listed. Free. Takes a few seconds per page because we "
+            "wait politely between visits to the same website.",
+            "Shows a made-up example report so you can see what the output looks like. No internet needed.",
+        ],
+        key="mode",
+    )
+    if mode == LIVE:
+        pages = sum(len(c.urls) for c in request.competitors)
+        st.caption(f"{pages} page{'s' if pages != 1 else ''} to read. AI analysis of the pages "
+                   "arrives in Milestone 4, so for now a live report lists the sources collected.")
     label = "Rerun research" if "report" in st.session_state else "Run research"
     if st.button(label, type="primary", help="Collects sources, fact-checks findings and builds the report."):
-        run_and_store(request)
+        run_and_store(request, live=(mode == LIVE))
 
 
 def show_md(lines: list, empty_message: str) -> None:
@@ -167,13 +185,31 @@ def show_md(lines: list, empty_message: str) -> None:
         st.info(empty_message)
 
 
+def show_sources(report: Report) -> None:
+    if not report.sources:
+        st.info("No sources were collected.")
+    for i, source in enumerate(report.sources, start=1):
+        with st.expander(f"[{i}] {source.title} - accessed {rpt.access_date(source)}"):
+            st.markdown(f"[{source.url}]({source.url})")
+            st.caption(f"{len(source.text):,} characters of readable text collected. Preview:")
+            st.text(source.excerpt)
+    if report.skipped_pages:
+        st.markdown("**Pages we could not use**")
+        st.markdown("\n".join(rpt.skipped_md(report)))
+        st.caption("We never get around logins, paywalls, CAPTCHAs or robots.txt rules. "
+                   "If a page you need was skipped, try a different public page with the same information.")
+
+
 def show_report(report: Report) -> None:
     st.subheader("3. Report")
     if report.is_demo:
         st.error(f"**⚠️ {DEMO_LABEL}.** This sample report uses invented brands, prices, quotes and "
                  "sources to show what a report looks like. It does not describe your competitors.")
     st.caption(f"Generated {report.generated_at} · {len(report.sources)} sources · "
+               f"{len(report.skipped_pages)} pages skipped · "
                f"{len(report.claims)} findings kept · {len(report.rejected_claims)} removed by fact-check")
+    for note in report.notes:
+        st.info(note)
     st.markdown(rpt.LEGEND)
 
     slug = "demo-" if report.is_demo else ""
@@ -218,7 +254,7 @@ def show_report(report: Report) -> None:
             else:
                 st.info(not_selected)
     with tabs[7]:
-        show_md(rpt.sources_md(report), "No sources were collected.")
+        show_sources(report)
     with tabs[8]:
         st.markdown("Every **verified fact** must quote text that really appears on the page it cites. "
                     "Anything that fails is removed and listed here, so nothing is hidden.")

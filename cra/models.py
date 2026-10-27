@@ -107,6 +107,15 @@ class Insight:
 
 
 @dataclass
+class SkippedPage:
+    """A page we did not use, and the plain-English reason why."""
+
+    competitor: str
+    url: str
+    reason: str
+
+
+@dataclass
 class Report:
     request: ResearchRequest
     sources: List[Source]
@@ -117,7 +126,8 @@ class Report:
     generated_at: str
     is_demo: bool
     rejected_claims: List[Claim] = field(default_factory=list)  # failed the fact-check
-    notes: List[str] = field(default_factory=list)  # e.g. pages that were skipped
+    notes: List[str] = field(default_factory=list)  # general messages shown at the top
+    skipped_pages: List[SkippedPage] = field(default_factory=list)
 
     def claims_for(self, category: ResearchCategory) -> List[Claim]:
         return [c for c in self.claims if c.category is category]

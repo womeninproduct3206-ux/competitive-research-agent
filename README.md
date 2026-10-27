@@ -5,10 +5,10 @@ your competitors and their public web pages, and your research questions. The ap
 produces a structured report in which every claim links to the public source that
 supports it.
 
-> **Status: Milestone 2 (sample report).** Enter your research setup, click **Run research**,
-> and get a full report: insights, feature matrix, pricing, positioning, launches, complaints,
-> sources and a fact-check log, with Markdown and CSV downloads. Until live research is built
-> (Milestones 3-4), the report uses clearly labeled **invented** sample brands.
+> **Status: Milestone 3 (live page reading).** Choose **Live research** to read the real public
+> pages you list (free, no API key). The report shows every page read, with its access date and a
+> text preview, plus every page skipped and why. AI analysis of those pages arrives in Milestone 4.
+> Choose **Sample report** to see a full example report built from clearly labeled invented data.
 
 ## Demo mode vs. live mode
 
@@ -57,6 +57,7 @@ cra/config.py     Reads settings and secrets
 cra/models.py     Shared data shapes: requests, sources, claims
 cra/validation.py Checks the setup form and explains problems in plain English
 cra/pipeline.py   Runs a research job step by step, reporting progress
+cra/fetcher.py    Reads public pages politely: robots.txt, rate limits, no logins/paywalls/CAPTCHAs
 cra/demo.py       Clearly labeled sample data (invented brands on example.com)
 cra/verification.py  Fact-checker: drops "facts" whose quote isn't on the cited page
 cra/report.py     Builds the report sections, Markdown and CSV downloads
@@ -66,7 +67,11 @@ tests/            Automated tests
 ## Research principles
 
 - Only publicly accessible pages are used. Logins, paywalls and CAPTCHAs are never bypassed.
-- robots.txt and rate limits are respected.
+- robots.txt is checked before every page (including after redirects), and pages it disallows
+  are never downloaded.
+- At least 2 seconds between requests to the same website, or longer if its robots.txt asks.
+- The app identifies itself honestly (User-Agent `CompetitiveResearchAgent/0.1`).
+- Private/internal network addresses are refused, so a hosted copy can't be used to probe them.
 - A "verified fact" must quote text that really appears on the page it cites. Plain code (not AI)
   checks this, and anything that fails is removed and listed in the report's Fact-check tab.
 - Facts, pricing, dates and quotes are never invented. Every claim is labeled

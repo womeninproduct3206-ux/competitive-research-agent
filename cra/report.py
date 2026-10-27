@@ -139,6 +139,10 @@ def sources_md(report: Report) -> List[str]:
     return [f"{i}. [{s.title}]({s.url}) - accessed {access_date(s)}" for i, s in enumerate(report.sources, start=1)]
 
 
+def skipped_md(report: Report) -> List[str]:
+    return [f"- {p.competitor}: {p.url} - {p.reason}" for p in report.skipped_pages]
+
+
 def rejected_md(report: Report) -> List[str]:
     if not report.rejected_claims:
         return []
@@ -185,6 +189,7 @@ def to_markdown(report: Report) -> str:
             section(heading, claims_md(report, category, cites))
     section("Insights", insights_md(report, cites))
     section("Sources", sources_md(report))
+    section("Pages we could not use", skipped_md(report))
     section("Removed by fact-check", rejected_md(report))
     return "\n".join(out)
 
