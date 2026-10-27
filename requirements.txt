@@ -1,0 +1,4 @@
+# Libraries this app needs. Install them with:  pip install -r requirements.txt
+streamlit>=1.40,<2        # builds the web interface
+python-dotenv>=1.0,<2     # reads settings from a local .env file
+pytest>=8,<10             # runs the automated tests

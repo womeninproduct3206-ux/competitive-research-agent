@@ -1,0 +1,18 @@
+# Secrets - never commit these
+.env
+.streamlit/secrets.toml
+
+# Python clutter
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Editor / OS clutter
+.DS_Store
+.vscode/
+.idea/
+
+# Downloaded reports
+reports/
