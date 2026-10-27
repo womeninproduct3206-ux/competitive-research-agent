@@ -55,6 +55,24 @@ Settings are read from environment variables. **Never put keys in the code.**
 Locally they go in `.env`, which git ignores. On Streamlit Community Cloud they go in
 the app's **Settings → Secrets**.
 
+## Put it online (Streamlit Community Cloud, free)
+
+1. Sign in at https://share.streamlit.io with your GitHub account.
+2. Click **Create app** → **Deploy a public app from GitHub** and fill in:
+   - Repository: `womeninproduct3206-ux/competitive-research-agent`
+   - Branch: `main`
+   - Main file path: `app.py`
+3. Open **Advanced settings**, choose Python 3.12 or newer, and paste your secrets
+   (see `.streamlit/secrets.toml.example`), for example:
+   ```toml
+   AI_PROVIDER = "gemini"
+   GEMINI_API_KEY = "your-key"
+   APP_PASSWORD = "a-strong-password"
+   ```
+4. Click **Deploy**. Every push to `main` updates the app automatically.
+
+Always set `APP_PASSWORD` for an online copy, so strangers can't use up your API quota.
+
 ## Run the tests
 
 ```bash

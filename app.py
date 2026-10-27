@@ -52,10 +52,11 @@ EXAMPLE = {
     "objectives": "How do these brands price and position their products? "
     "What do customers complain about? Where are the gaps we could fill?",
     "categories": list(Cat),
-    "n_competitors": 3,
+    "n_competitors": 2,
     "comp_name_0": "Get-A-Whey",
-    "comp_name_1": "Go Zero",
-    "comp_name_2": "Amul",
+    "comp_urls_0": "https://getawaydesserts.com/",
+    "comp_name_1": "Amul",
+    "comp_urls_1": "https://amul.com/ice-cream",
 }
 
 
@@ -74,7 +75,7 @@ def setup_form() -> None:
     left, right = st.columns([3, 1])
     left.write("Tell us about your product, your competitors, and what you want to learn.")
     right.button("Fill in example", on_click=load_example, use_container_width=True,
-                 help="Pre-fills the ice cream test case. Competitor web addresses are left for you to paste.")
+                 help="Pre-fills the ice cream test case with two competitors and their public pages.")
 
     n = st.number_input("How many competitors?", min_value=1, max_value=MAX_COMPETITORS,
                         key="n_competitors")
