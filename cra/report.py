@@ -146,8 +146,10 @@ def skipped_md(report: Report) -> List[str]:
 def rejected_md(report: Report) -> List[str]:
     if not report.rejected_claims:
         return []
-    return ["These statements were dropped because their quote could not be found on the cited page:", "",
-            *[f"- {c.competitor}: {c.statement}" for c in report.rejected_claims]]
+    return ["These statements were dropped because their supporting quote could not be found on the cited "
+            "page (or a price wasn't in its quote, or the page cited doesn't exist):", "",
+            *[f"- {c.competitor}: {c.statement}" + (f" — claimed quote: *\"{c.quote}\"*" if c.quote else "")
+              for c in report.rejected_claims]]
 
 
 LEGEND = ("**How to read this report:** " + " · ".join(evidence_label(e) for e in EvidenceType)
@@ -165,6 +167,8 @@ def to_markdown(report: Report) -> str:
         out += [f"> **⚠️ {DEMO_LABEL}.** Every brand, price, quote and source in this report is "
                 "invented to show what a report looks like.", ""]
     out += [f"Generated: {report.generated_at}", ""]
+    if report.analyzed_by:
+        out += [f"Findings extracted by {report.analyzed_by}, then checked against the sources by code.", ""]
 
     out += ["## Research setup", "",
             f"- **Product:** {req.product_name} - {req.product_description}",

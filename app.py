@@ -9,6 +9,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from cra.config import Settings, load_settings
+from cra.llm import make_client
 from cra import report as rpt
 from cra.demo import DEMO_LABEL
 from cra.models import Report, ResearchCategory as Cat, ResearchRequest
@@ -139,11 +140,13 @@ def show_request(request: ResearchRequest) -> None:
             st.markdown("\n".join(f"- {u}" for u in comp.urls))
 
 
-def run_and_store(request: ResearchRequest, live: bool) -> None:
+def run_and_store(request: ResearchRequest, live: bool, settings: Settings) -> None:
     """Run research with a live progress bar, keeping any error readable."""
     bar = st.progress(0.0, text="Starting research...")
     try:
-        report = run_research(request, progress=lambda f, msg: bar.progress(f, text=msg), live=live)
+        client = make_client(settings) if live else None
+        report = run_research(request, progress=lambda f, msg: bar.progress(f, text=msg),
+                              live=live, client=client)
     except Exception as exc:  # show a helpful message instead of a crash screen
         bar.empty()
         st.error(f"Research could not be completed: {exc}\n\nYour setup is saved. "
@@ -157,25 +160,34 @@ LIVE = "Live research"
 SAMPLE = "Sample report (demo data)"
 
 
-def research_step(request: ResearchRequest) -> None:
+def research_step(request: ResearchRequest, settings: Settings) -> None:
     st.subheader("2. Run research")
     mode = st.radio(
         "What kind of research?",
         [LIVE, SAMPLE],
         captions=[
-            "Reads the public pages you listed. Free. Takes a few seconds per page because we "
-            "wait politely between visits to the same website.",
+            "Reads the public pages you listed, then the AI extracts findings and code fact-checks them. "
+            "Takes a few seconds per page because we wait politely between visits to the same website.",
             "Shows a made-up example report so you can see what the output looks like. No internet needed.",
         ],
         key="mode",
     )
     if mode == LIVE:
         pages = sum(len(c.urls) for c in request.competitors)
-        st.caption(f"{pages} page{'s' if pages != 1 else ''} to read. AI analysis of the pages "
-                   "arrives in Milestone 4, so for now a live report lists the sources collected.")
+        plural = "s" if pages != 1 else ""
+        if not settings.live_mode:
+            st.caption(f"{pages} page{plural} to read. No AI key is set up, so the report will list "
+                       "the sources collected but no findings.")
+        elif settings.ai_provider == "gemini":
+            st.caption(f"{pages} page{plural} to read, then analysed by {settings.ai_label}. Free, but your "
+                       "product description and the page text are sent to Google, whose free tier may use "
+                       "them to improve its products. Don't enter confidential details.")
+        else:
+            st.caption(f"{pages} page{plural} to read, then analysed by {settings.ai_label}. "
+                       "Paid: roughly $1 per run, depending on page length.")
     label = "Rerun research" if "report" in st.session_state else "Run research"
     if st.button(label, type="primary", help="Collects sources, fact-checks findings and builds the report."):
-        run_and_store(request, live=(mode == LIVE))
+        run_and_store(request, live=(mode == LIVE), settings=settings)
 
 
 def show_md(lines: list, empty_message: str) -> None:
@@ -205,11 +217,13 @@ def show_report(report: Report) -> None:
     if report.is_demo:
         st.error(f"**⚠️ {DEMO_LABEL}.** This sample report uses invented brands, prices, quotes and "
                  "sources to show what a report looks like. It does not describe your competitors.")
+    if report.analyzed_by:
+        st.caption(f"Findings extracted by {report.analyzed_by}, then checked against the sources by code.")
     st.caption(f"Generated {report.generated_at} · {len(report.sources)} sources · "
                f"{len(report.skipped_pages)} pages skipped · "
                f"{len(report.claims)} findings kept · {len(report.rejected_claims)} removed by fact-check")
     for note in report.notes:
-        st.info(note)
+        (st.warning if note.startswith("⚠️") else st.info)(note)
     st.markdown(rpt.LEGEND)
 
     slug = "demo-" if report.is_demo else ""
@@ -270,18 +284,18 @@ def main() -> None:
     st.caption("Evidence-backed competitive research for Product Managers.")
 
     if settings.live_mode:
-        st.info(f"API key detected (model: `{settings.claude_model}`). Live research arrives in "
-                "Milestones 3-4; until then reports use labeled sample data.")
+        st.success(f"AI analysis is on: {settings.ai_label}.")
     else:
         st.warning(
-            "**Demo mode.** No API key is configured, so the app will only show clearly "
-            "labeled sample data. Sample data is not real research."
+            "**No AI key configured.** Live research will collect public pages but can't extract "
+            "findings yet. The sample report shows clearly labeled made-up data. See the README to add "
+            "a free Google Gemini key."
         )
 
     setup_form()
     if "request" in st.session_state:
         show_request(st.session_state["request"])
-        research_step(st.session_state["request"])
+        research_step(st.session_state["request"], settings)
     if "report" in st.session_state:
         show_report(st.session_state["report"])
 

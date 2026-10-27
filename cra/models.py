@@ -76,6 +76,7 @@ class FeatureEntry:
     feature: str
     status: str  # "Yes", "No" or "Not found" (not mentioned in any source)
     source_url: str = ""
+    quote: str = ""
 
 
 @dataclass
@@ -88,6 +89,7 @@ class PriceEntry:
     billing: str  # e.g. "per user / month"
     source_url: str
     notes: str = ""
+    quote: str = ""
 
 
 class InsightKind(str, Enum):
@@ -127,6 +129,7 @@ class Report:
     is_demo: bool
     rejected_claims: List[Claim] = field(default_factory=list)  # failed the fact-check
     notes: List[str] = field(default_factory=list)  # general messages shown at the top
+    analyzed_by: str = ""  # which AI service produced the findings, if any
     skipped_pages: List[SkippedPage] = field(default_factory=list)
 
     def claims_for(self, category: ResearchCategory) -> List[Claim]:
