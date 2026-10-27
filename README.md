@@ -5,9 +5,10 @@ your competitors and their public web pages, and your research questions. The ap
 produces a structured report in which every claim links to the public source that
 supports it.
 
-> **Status: Milestone 1 (research setup form).** You can enter your product, competitors,
-> their public web pages, objectives and categories. The form checks your input and
-> explains anything that needs fixing. Running research arrives in Milestone 2.
+> **Status: Milestone 2 (sample report).** Enter your research setup, click **Run research**,
+> and get a full report: insights, feature matrix, pricing, positioning, launches, complaints,
+> sources and a fact-check log, with Markdown and CSV downloads. Until live research is built
+> (Milestones 3-4), the report uses clearly labeled **invented** sample brands.
 
 ## Demo mode vs. live mode
 
@@ -55,6 +56,10 @@ app.py            Web interface (Streamlit)
 cra/config.py     Reads settings and secrets
 cra/models.py     Shared data shapes: requests, sources, claims
 cra/validation.py Checks the setup form and explains problems in plain English
+cra/pipeline.py   Runs a research job step by step, reporting progress
+cra/demo.py       Clearly labeled sample data (invented brands on example.com)
+cra/verification.py  Fact-checker: drops "facts" whose quote isn't on the cited page
+cra/report.py     Builds the report sections, Markdown and CSV downloads
 tests/            Automated tests
 ```
 
@@ -62,5 +67,7 @@ tests/            Automated tests
 
 - Only publicly accessible pages are used. Logins, paywalls and CAPTCHAs are never bypassed.
 - robots.txt and rate limits are respected.
+- A "verified fact" must quote text that really appears on the page it cites. Plain code (not AI)
+  checks this, and anything that fails is removed and listed in the report's Fact-check tab.
 - Facts, pricing, dates and quotes are never invented. Every claim is labeled
   **Verified fact**, **Inference** or **Hypothesis**.

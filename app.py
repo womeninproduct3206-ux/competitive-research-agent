@@ -9,7 +9,10 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from cra.config import Settings, load_settings
-from cra.models import ResearchCategory, ResearchRequest
+from cra import report as rpt
+from cra.demo import DEMO_LABEL
+from cra.models import Report, ResearchCategory as Cat, ResearchRequest
+from cra.pipeline import run_research
 from cra.validation import MAX_COMPETITORS, CompetitorInput, FormInput, validate_form
 
 st.set_page_config(page_title="Competitive Research Agent", page_icon="🔎", layout="wide")
@@ -47,7 +50,7 @@ EXAMPLE = {
     "target_customer": "Health-conscious adults in Indian cities",
     "objectives": "How do these brands price and position their products? "
     "What do customers complain about? Where are the gaps we could fill?",
-    "categories": list(ResearchCategory),
+    "categories": list(Cat),
     "n_competitors": 3,
     "comp_name_0": "Get-A-Whey",
     "comp_name_1": "Go Zero",
@@ -65,7 +68,7 @@ def load_example() -> None:
 def setup_form() -> None:
     """The research setup form. Saves a valid ResearchRequest in the session."""
     st.session_state.setdefault("n_competitors", 2)
-    st.session_state.setdefault("categories", list(ResearchCategory))
+    st.session_state.setdefault("categories", list(Cat))
     st.subheader("1. Research setup")
     left, right = st.columns([3, 1])
     left.write("Tell us about your product, your competitors, and what you want to learn.")
@@ -99,7 +102,7 @@ def setup_form() -> None:
         st.markdown("**What do you want to learn?**")
         st.text_area("Research objectives", key="objectives", height=80,
                      placeholder="e.g. Why are we losing deals to Competitor X?")
-        st.multiselect("Research categories", options=list(ResearchCategory),
+        st.multiselect("Research categories", options=list(Cat),
                        format_func=lambda c: c.value, key="categories")
         submitted = st.form_submit_button("Save research setup", type="primary")
 
@@ -122,18 +125,104 @@ def setup_form() -> None:
                      + "\n".join(f"- {e}" for e in errors))
         else:
             st.session_state["request"] = request
+            st.session_state.pop("report", None)  # an old report no longer matches the new setup
 
 
 def show_request(request: ResearchRequest) -> None:
     st.success("Research setup saved.")
-    with st.expander("Review your setup", expanded=True):
+    with st.expander("Review your setup", expanded="report" not in st.session_state):
         st.markdown(f"**{request.product_name}** · {request.industry} · for {request.target_customer}")
         st.markdown(f"**Objectives:** {request.objectives}")
         st.markdown("**Categories:** " + ", ".join(c.value for c in request.categories))
         for comp in request.competitors:
             st.markdown(f"**{comp.name}** ({len(comp.urls)} page{'s' if len(comp.urls) != 1 else ''})")
             st.markdown("\n".join(f"- {u}" for u in comp.urls))
-    st.info("Running the research and building the report arrives in Milestone 2.")
+
+
+def run_and_store(request: ResearchRequest) -> None:
+    """Run research with a live progress bar, keeping any error readable."""
+    bar = st.progress(0.0, text="Starting research...")
+    try:
+        report = run_research(request, progress=lambda f, msg: bar.progress(f, text=msg))
+    except Exception as exc:  # show a helpful message instead of a crash screen
+        bar.empty()
+        st.error(f"Research could not be completed: {exc}\n\nYour setup is saved. "
+                 "Please try **Run research** again in a minute.")
+        return
+    bar.empty()
+    st.session_state["report"] = report
+
+
+def research_step(request: ResearchRequest) -> None:
+    st.subheader("2. Run research")
+    label = "Rerun research" if "report" in st.session_state else "Run research"
+    if st.button(label, type="primary", help="Collects sources, fact-checks findings and builds the report."):
+        run_and_store(request)
+
+
+def show_md(lines: list, empty_message: str) -> None:
+    if lines:
+        st.markdown("\n".join(lines))
+    else:
+        st.info(empty_message)
+
+
+def show_report(report: Report) -> None:
+    st.subheader("3. Report")
+    if report.is_demo:
+        st.error(f"**⚠️ {DEMO_LABEL}.** This sample report uses invented brands, prices, quotes and "
+                 "sources to show what a report looks like. It does not describe your competitors.")
+    st.caption(f"Generated {report.generated_at} · {len(report.sources)} sources · "
+               f"{len(report.claims)} findings kept · {len(report.rejected_claims)} removed by fact-check")
+    st.markdown(rpt.LEGEND)
+
+    slug = "demo-" if report.is_demo else ""
+    d1, d2, d3, d4 = st.columns(4)
+    d1.download_button("⬇️ Full report (Markdown)", rpt.to_markdown(report),
+                       file_name=f"{slug}competitive-report.md", mime="text/markdown", use_container_width=True)
+    d2.download_button("⬇️ Findings (CSV)", rpt.claims_csv(report),
+                       file_name=f"{slug}findings.csv", mime="text/csv", use_container_width=True)
+    d3.download_button("⬇️ Feature matrix (CSV)", rpt.features_csv(report),
+                       file_name=f"{slug}feature-matrix.csv", mime="text/csv", use_container_width=True)
+    d4.download_button("⬇️ Pricing (CSV)", rpt.pricing_csv(report),
+                       file_name=f"{slug}pricing.csv", mime="text/csv", use_container_width=True)
+
+    cites = rpt.Citations(report.sources)
+    selected = set(report.request.categories)
+    not_selected = "You didn't select this category in your research setup."
+    tabs = st.tabs(["Insights", "Features", "Pricing", "Positioning", "Launches",
+                    "Complaints", "Gaps", "Sources", "Fact-check"])
+    with tabs[0]:
+        show_md(rpt.insights_md(report, cites), "No insights could be supported by the sources.")
+    with tabs[1]:
+        if Cat.FEATURES in selected:
+            show_md(rpt.feature_table_md(report, cites) + [""] + rpt.claims_md(report, Cat.FEATURES, cites),
+                    "No feature information was found in the sources.")
+        else:
+            st.info(not_selected)
+    with tabs[2]:
+        if Cat.PRICING in selected:
+            show_md(rpt.pricing_table_md(report, cites) + [""] + rpt.claims_md(report, Cat.PRICING, cites),
+                    "No reliable pricing was published on the pages we read.")
+        else:
+            st.info(not_selected)
+    for tab, category, empty in [
+        (tabs[3], Cat.POSITIONING, "No positioning statements were found."),
+        (tabs[4], Cat.LAUNCHES, "No recent launches were found in the sources."),
+        (tabs[5], Cat.REVIEWS, "No customer complaints were found in publicly accessible sources."),
+        (tabs[6], Cat.GAPS, "No product gaps were identified from the sources."),
+    ]:
+        with tab:
+            if category in selected:
+                show_md(rpt.claims_md(report, category, cites), empty)
+            else:
+                st.info(not_selected)
+    with tabs[7]:
+        show_md(rpt.sources_md(report), "No sources were collected.")
+    with tabs[8]:
+        st.markdown("Every **verified fact** must quote text that really appears on the page it cites. "
+                    "Anything that fails is removed and listed here, so nothing is hidden.")
+        show_md(rpt.rejected_md(report), "All findings passed the fact-check.")
 
 
 def main() -> None:
@@ -145,7 +234,8 @@ def main() -> None:
     st.caption("Evidence-backed competitive research for Product Managers.")
 
     if settings.live_mode:
-        st.success(f"Live mode: AI analysis is configured (model: `{settings.claude_model}`).")
+        st.info(f"API key detected (model: `{settings.claude_model}`). Live research arrives in "
+                "Milestones 3-4; until then reports use labeled sample data.")
     else:
         st.warning(
             "**Demo mode.** No API key is configured, so the app will only show clearly "
@@ -155,6 +245,9 @@ def main() -> None:
     setup_form()
     if "request" in st.session_state:
         show_request(st.session_state["request"])
+        research_step(st.session_state["request"])
+    if "report" in st.session_state:
+        show_report(st.session_state["report"])
 
 
 main()

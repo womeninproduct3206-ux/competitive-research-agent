@@ -46,7 +46,8 @@ class Source:
     title: str
     url: str
     accessed_at: str  # ISO date-time, e.g. "2026-10-27T15:40:00Z"
-    excerpt: str = ""
+    excerpt: str = ""  # short summary of what the page says, shown in the report
+    text: str = ""     # full extracted page text, used by the fact-checker
 
 
 @dataclass
@@ -65,3 +66,58 @@ class Claim:
         if self.evidence_type is EvidenceType.FACT:
             return bool(self.source_urls) and bool(self.quote.strip())
         return True
+
+
+@dataclass
+class FeatureEntry:
+    """One cell of the feature comparison matrix."""
+
+    competitor: str
+    feature: str
+    status: str  # "Yes", "No" or "Not found" (not mentioned in any source)
+    source_url: str = ""
+
+
+@dataclass
+class PriceEntry:
+    """A price exactly as published on a source page."""
+
+    competitor: str
+    plan: str
+    price: str    # as written on the page, e.g. "$12" or "Contact sales"
+    billing: str  # e.g. "per user / month"
+    source_url: str
+    notes: str = ""
+
+
+class InsightKind(str, Enum):
+    NEED = "Underserved customer need"
+    STRENGTH = "Competitor strength"
+    WEAKNESS = "Competitor weakness"
+    OPPORTUNITY = "Product opportunity"
+
+
+@dataclass
+class Insight:
+    kind: InsightKind
+    title: str
+    reasoning: str  # why we believe this, in plain English
+    evidence_type: EvidenceType
+    source_urls: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Report:
+    request: ResearchRequest
+    sources: List[Source]
+    claims: List[Claim]
+    features: List[FeatureEntry]
+    prices: List[PriceEntry]
+    insights: List[Insight]
+    generated_at: str
+    is_demo: bool
+    rejected_claims: List[Claim] = field(default_factory=list)  # failed the fact-check
+    notes: List[str] = field(default_factory=list)  # e.g. pages that were skipped
+
+    def claims_for(self, category: ResearchCategory) -> List[Claim]:
+        return [c for c in self.claims if c.category is category]
